@@ -1,14 +1,16 @@
 import { useEffect } from "react";
 import Lenis from "lenis";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Hero from "@/components/landing/Hero";
 import Marquee from "@/components/landing/Marquee";
 import Manifesto from "@/components/landing/Manifesto";
 import Footer from "@/components/landing/Footer";
+import CommandCenter from "@/pages/CommandCenter";
 
 const VIDEO_URL =
   "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260315_073750_51473149-4350-4920-ae24-c8214286f323.mp4";
 
-export default function App() {
+function Landing() {
   useEffect(() => {
     const lenis = new Lenis({ duration: 1.25, smoothWheel: true });
     let rafId;
@@ -42,5 +44,16 @@ export default function App() {
         <Footer />
       </main>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Landing />} />
+        <Route path="/command" element={<CommandCenter />} />
+      </Routes>
+    </BrowserRouter>
   );
 }

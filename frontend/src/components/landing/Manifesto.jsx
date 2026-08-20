@@ -29,6 +29,7 @@ const CHAPTERS = [
 export default function Manifesto() {
   return (
     <section
+      id="manifesto"
       className="relative py-28 lg:py-40 px-6 lg:px-16"
       data-testid="manifesto-section"
     >

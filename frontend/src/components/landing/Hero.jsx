@@ -1,7 +1,6 @@
 import { useRef } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import {
-  Menu,
   ArrowRight,
   Twitter,
   Linkedin,
@@ -12,6 +11,7 @@ import {
   Plus,
   Download,
 } from "lucide-react";
+import MenuOverlay from "@/components/landing/MenuOverlay";
 
 const EASE = [0.22, 1, 0.36, 1];
 
@@ -86,13 +86,7 @@ export default function Hero() {
                 resqnet
               </span>
             </a>
-            <button
-              className="liquid-glass rounded-full px-5 py-2.5 flex items-center gap-2 text-sm text-white/80 hover:scale-105 active:scale-95 transition-transform duration-300"
-              data-testid="menu-button"
-            >
-              <Menu size={15} />
-              <span>Menu</span>
-            </button>
+            <MenuOverlay />
           </motion.nav>
 
           <div className="flex flex-col items-start gap-8 py-14">

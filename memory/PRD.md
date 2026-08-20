@@ -1,52 +1,46 @@
 # RESQNET — PRD
 
 ## Original Problem Statement
-Build a landing page for RESQNET, a disaster-management app that helps rescue agencies coordinate. The user supplied an exact design prompt (originally for a plant app "Bloom"): full-screen liquid-glass morphism hero over a looping video background, strict grayscale palette, Poppins + Source Serif 4 typography, two-panel split layout (52% left / 48% right), adapted to RESQNET copy. A full backend spec (recommendation engine, dispatch API, seed data, tests) was included in the prompt but deferred by user choice to a follow-up. Enhancement directive: Awwwards-level polish — framer-motion reveals, lenis smooth scroll, editorial marquee, numbered manifesto chapters.
+RESQNET: a disaster-management app helping rescue agencies coordinate. Phase 1 (done): liquid-glass landing page per exact design prompt. Phase 2 (this session): explainable recommendation engine backend (5-factor scoring, dispatch revalidation, Nagpur seed data), Command Center dispatcher console, and full-screen menu overlay — per the detailed backend spec (agencies/units/incidents/incident-units/incident-events, hard capability eligibility, weighted scoring, audit events, role-based access architecture).
 
 ## User Personas
-- Emergency dispatcher evaluating RESQNET
-- Agency operator (fire/medical/police/rescue)
-- Hackathon judges / demo viewers
-
-## Core Requirements (static)
-- Exact Bloom liquid-glass design adapted to RESQNET branding and copy
-- Keep the provided video background URL
-- Text/logo-mark created in-house (user may supply a real logo later)
-- Strict grayscale, no colored accents
-- Premium motion: masked hero reveal, smooth scroll, scroll-reveals, marquee, manifesto chapters
+- DISPATCHER: creates incidents, views recommendations, dispatches units
+- AGENCY_OPERATOR: manages own unit availability
+- FIELD_RESPONDER: updates assigned unit status
+- ADMIN: manages everything
 
 ## Architecture
-- React (CRA + craco) frontend only; no backend work this phase
-- Components: `src/components/landing/Hero.jsx`, `Marquee.jsx`, `Manifesto.jsx`, `Footer.jsx`
-- Liquid glass tiers in `index.css` @layer components (`.liquid-glass`, `.liquid-glass-strong`) per exact spec
-- `lenis` for momentum scroll; `framer-motion` for entrance + parallax
-- Logo mark generated procedurally at `public/logo.png` (white ring + rescue cross, transparent)
+- Backend: FastAPI + Motor (MongoDB), modular: `config.py` (weights/bands/constants), `services/recommendation.py` (haversine, eligibility, scoring — pure functions), `services/dispatch.py` (validate_dispatch, build_dispatch_events — pure), `models.py` (pydantic), `seed.py`, `tests/test_recommendation.py`, `API.md`
+- Frontend: React; `/` landing (Hero/Marquee/Manifesto/Footer/MenuOverlay), `/command` Command Center (IncidentList, RecommendationPanel, Timeline, UnitsPanel)
+- Auth: header-based role architecture (`X-Role`), no login per spec; demo role switcher in Command Center header
+- String IDs (INC-0001, UNIT-012, AGY-01); all Mongo reads exclude `_id`; timestamps ISO strings
+
+## Scoring Formula
+score = 0.35*capability + 0.20*availability + 0.20*distance + 0.15*workload + 0.10*incident_priority
+- Hard filters BEFORE ranking: status AVAILABLE, all required capabilities, workload ≤ 3, not already assigned
+- Severity: LOW 25 / MODERATE 50 / HIGH 75 / CRITICAL 100; distance bands 0-2km→100, 2-5→85, 5-10→65, 10-20→40, 20+→15; workload 0-4 → 100/75/50/25/0; ETA = km / 30 km/h (estimate only, not traffic-aware)
 
 ## Implemented (2026-08-20)
-- Full-screen hero: video bg (exact URL), left glass panel (nav, logo, masked line-by-line h1 reveal "Uniting the / spirit of response", Explore Now CTA, 3 feature pills, quote block), right panel (social pill, account button, community card, feature cards with parallax)
-- Slow editorial marquee (multi-agency coordination strip)
-- Numbered manifesto chapters 01/02/03 with scroll reveals
-- Footer with brand + "Simulated demonstration environment — Nagpur"
-- Lenis smooth scrolling, grayscale-only palette, all interactive elements have data-testid
-- Verified via screenshots: hero, marquee, manifesto, footer all render; no blocking console errors
+- Phase 1: landing page (video hero, liquid glass, marquee, manifesto, lenis, framer-motion)
+- Phase 2: full backend — agencies/units/incidents CRUD-lite, recommendations endpoint with explainable scores + reasons + exclusions, dispatch with revalidation (UNIT_UNAVAILABLE/ CAPABILITY_MISMATCH/UNIT_ALREADY_ASSIGNED/INCIDENT_NOT_ACTIVE), incident-unit assignments, event timeline (INCIDENT_CREATED, UNIT_RECOMMENDED, UNIT_ASSIGNED, UNIT_DISPATCHED, UNIT_EN_ROUTE, UNIT_ARRIVED, UNIT_COMPLETED, INCIDENT_ASSESSED, INCIDENT_RESOLVED), consistent error format, role guards
+- Seed: 10 agencies, 36 units, 6 incidents (Nagpur; CRITICAL Ward 14 flood demo)
+- 11 pytest unit tests — all passing
+- Command Center: incident list, generate recommendations (top 3 preselected), one-click dispatch, timeline, unit status panel, role switcher, 10s polling
+- Menu overlay: full-screen glass nav with links to Home/Manifesto/Command Center/Network
+- Verified: curl chain (health, agencies, units, incidents, recommendations, dispatch success + 409 revalidation + 403 role, unit status, create incident), UI screenshots of full dispatch flow and menu overlay, pytest 11/11
 
-## Backlog (prioritized)
-### P0 (next session, per backend spec)
-- FastAPI backend: agencies/units/incidents/incident-units/incident-events models (MongoDB)
-- Recommendation engine: 5-factor explainable scoring (capability 35%, availability 20%, distance 20%, workload 15%, incident priority 10%), Haversine distance, hard capability/availability eligibility
-- Endpoints: POST/GET /api/incidents, PATCH status, GET /api/units, GET /api/agencies, GET /api/incidents/:id/recommendations, POST /api/incidents/:id/dispatch (with revalidation)
-- Seed data: ~10 agencies, 30–40 units, 5–7 incidents in Nagpur
-- Recommendation engine unit tests (11 cases from spec)
+## Backlog
 ### P1
-- Command Center UI consuming recommendations endpoint (RECOMMENDED RESPONSE → DISPATCH → LIVE STATUS)
-- Role scaffolding: ADMIN / DISPATCHER / AGENCY_OPERATOR / FIELD_RESPONDER
-- Incident event timeline display
+- Realtime push (WebSockets/Supabase Realtime) instead of 10s polling
+- Incident creation form in Command Center UI (API exists)
+- Resolve/close incident flow in UI (API exists)
 ### P2
-- Realtime updates (WebSockets) for unit/incident status
-- Real road-routing ETA (MVP uses distance/speed estimate)
-- User-provided official RESQNET logo swap-in
+- Real road-routing ETA, traffic, historical response data
+- Live map view of Nagpur units/incidents
+- Official RESQNET logo swap
+- Real auth (JWT/OAuth) replacing X-Role header
 
 ## Next Tasks
-1. Build backend per spec (models, recommendation engine, dispatch safety, seed, tests)
-2. Command Center page wired to recommendations API
-3. Realtime status channel
+1. Incident creation + resolution controls in Command Center UI
+2. WebSocket realtime updates
+3. Map view

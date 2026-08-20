@@ -1,0 +1,44 @@
+RESPONSE_WEIGHTS = {
+    "capability": 0.35,
+    "availability": 0.20,
+    "distance": 0.20,
+    "workload": 0.15,
+    "incident_priority": 0.10,
+}
+
+SEVERITY_SCORES = {
+    "LOW": 25,
+    "MODERATE": 50,
+    "HIGH": 75,
+    "CRITICAL": 100,
+}
+
+# (max_km, score) — closer suitable units score higher; configurable
+DISTANCE_BANDS = [
+    (2.0, 100),
+    (5.0, 85),
+    (10.0, 65),
+    (20.0, 40),
+    (float("inf"), 15),
+]
+
+AVG_RESPONSE_SPEED_KMH = 30.0
+ELIGIBLE_UNIT_STATUSES = {"AVAILABLE"}
+MAX_WORKLOAD = 3
+RECOMMENDATION_LIMIT = 5
+
+ACTIVE_INCIDENT_STATUSES = {"REPORTED", "ASSESSING", "RESPONDING", "ON_SCENE", "CONTROLLED"}
+ACTIVE_ASSIGNMENT_STATUSES = {"RECOMMENDED", "ASSIGNED", "DISPATCHED", "EN_ROUTE", "ON_SCENE"}
+
+UNIT_STATUS_EVENT_MAP = {
+    "EN_ROUTE": "UNIT_EN_ROUTE",
+    "ON_SCENE": "UNIT_ARRIVED",
+    "COMPLETED": "UNIT_COMPLETED",
+}
+
+INCIDENT_STATUS_EVENT_MAP = {
+    "ASSESSING": "INCIDENT_ASSESSED",
+    "RESOLVED": "INCIDENT_RESOLVED",
+}
+
+ROLES = {"ADMIN", "DISPATCHER", "AGENCY_OPERATOR", "FIELD_RESPONDER"}
