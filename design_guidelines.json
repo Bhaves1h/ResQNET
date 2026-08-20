@@ -1,0 +1,142 @@
+{
+  "project_name": "RESQNET",
+  "app_type": "landing_page",
+  "theme": "dark",
+  "design_philosophy": "Awwwards-level liquid glass morphism aesthetic with a strict grayscale palette and no colored accents. Built over a looping fullscreen video background with multiple layers of blurred glass mimicking liquid properties.",
+  "typography": {
+    "fonts": [
+      {
+        "family": "Poppins",
+        "type": "sans-serif",
+        "usage": "Primary font for display, headings, and body. Use font-weight 500 for headings."
+      },
+      {
+        "family": "Source Serif 4",
+        "type": "serif",
+        "usage": "Accent font strictly for italicized words inside headings and specific quote sections."
+      }
+    ],
+    "hierarchy": {
+      "h1": "text-6xl lg:text-7xl tracking-[-0.05em] font-medium font-poppins",
+      "h2": "text-4xl lg:text-5xl tracking-tight font-medium font-poppins",
+      "h3": "text-2xl font-medium font-poppins",
+      "body": "text-base font-poppins",
+      "labels": "text-xs tracking-[0.2em] uppercase font-poppins"
+    },
+    "text_colors": {
+      "primary": "text-white",
+      "secondary": "text-white/80",
+      "tertiary": "text-white/60",
+      "quaternary": "text-white/50"
+    }
+  },
+  "colors": {
+    "palette": "Strictly grayscale. All HSL values must be 0 0% X%.",
+    "primary": "hsl(0, 0%, 100%)",
+    "backgrounds": [
+      "transparent",
+      "rgba(255, 255, 255, 0.01)",
+      "rgba(255, 255, 255, 0.05)"
+    ],
+    "forbidden": "No colored accents under any circumstances. No gradients containing hue."
+  },
+  "visual_enhancers": {
+    "global": {
+      "radius": "1rem (16px) via --radius variable",
+      "borders": "NO border classes anywhere. Borders are strictly handled by glass ::before pseudo-elements."
+    },
+    "custom_css_classes": [
+      {
+        "name": ".liquid-glass",
+        "layer": "components",
+        "properties": "backdrop-filter: blur(4px); background-color: rgba(255,255,255,0.01); mix-blend-mode: luminosity; box-shadow: inset 0 1px 1px rgba(255,255,255,0.1), inset 0 0 20px rgba(255,255,255,0.05); position: relative;",
+        "pseudo_before": "content: ''; position: absolute; inset: 0; padding: 1px; border-radius: inherit; background: linear-gradient(to bottom right, rgba(255,255,255,0.2), rgba(255,255,255,0.02)); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none;"
+      },
+      {
+        "name": ".liquid-glass-strong",
+        "layer": "components",
+        "properties": "backdrop-filter: blur(50px); background-color: rgba(255,255,255,0.03); mix-blend-mode: normal; box-shadow: inset 0 1px 1px rgba(255,255,255,0.2), inset 0 0 30px rgba(255,255,255,0.1); position: relative;",
+        "pseudo_before": "content: ''; position: absolute; inset: 0; padding: 1px; border-radius: inherit; background: linear-gradient(to bottom right, rgba(255,255,255,0.4), rgba(255,255,255,0.05)); -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none;"
+      }
+    ]
+  },
+  "layouts": {
+    "hero_section": {
+      "container": "relative min-h-screen w-full flex flex-col lg:flex-row overflow-hidden z-10",
+      "video_background": "absolute inset-0 w-full h-full object-cover z-0",
+      "left_panel": {
+        "width": "w-full lg:w-[52%]",
+        "structure": "relative flex flex-col h-full inset-4 lg:inset-6 rounded-3xl p-6 lg:p-12 justify-between",
+        "style_class": "liquid-glass-strong"
+      },
+      "right_panel": {
+        "width": "hidden lg:flex lg:w-[48%]",
+        "structure": "relative flex flex-col h-full p-6 lg:p-12 pl-0 justify-between"
+      }
+    }
+  },
+  "components": {
+    "left_panel_elements": {
+      "navigation": "Flex row, items center, justify between. Left: App Logo + 'resqnet' wordmark. Right: Menu pill button (.liquid-glass).",
+      "hero_content": "Centered vertically. Contains an 80px Logo icon, H1 heading (text-6xl/7xl tracking-[-0.05em]) utilizing Source Serif 4 italic accent lines. Below heading, a `.liquid-glass-strong` CTA pill with an icon wrapped in a white/15 circle.",
+      "feature_pills": "Flex row/wrap containing three small `.liquid-glass` feature pills.",
+      "quote_block": "Bottom aligned. Includes 'VISIONARY' label (uppercase, tracked out), mixed serif/sans quote text, and author attribution with horizontal accent lines (border-t/border-b using white/20)."
+    },
+    "right_panel_elements": {
+      "top_bar": "Flex row, justify end, gap 4. Contains social icons pill (Twitter, LinkedIn, Instagram + ArrowRight) and an account Sparkles button.",
+      "community_card": "Small 'Enter our ecosystem' card.",
+      "bottom_feature": "Outer container `.liquid-glass` rounded-[2.5rem] holding two side-by-side cards (Wand2, BookOpen icons) and one full-width bottom card. Bottom card includes a 96x64 image thumbnail (left aligned), title/description text, and a '+' icon button on the right."
+    },
+    "below_fold_elements": {
+      "marquee": "Slow editorial marquee strip using react-fast-marquee. Content: 'MULTI-AGENCY COORDINATION / RAPID RESPONSE TACTICS / UNIFIED COMMAND CENTER / REAL-TIME DATA SYNC'. Text styling: tracking wide, uppercase, white/50, no color.",
+      "manifesto_chapters": "Numbered sections (01, 02, 03) detailing multi-agency coordination. Large display numbers, mixed serif/sans layout, strict grayscale `.liquid-glass` aesthetic. Staggered reveals on scroll."
+    }
+  },
+  "motion": {
+    "entrance_animations": "Use framer-motion. Implement masked line-by-line reveals for hero headings. Staggered glass element fade-ins (opacity 0 to 1, y: 20 to 0) for pills and cards.",
+    "interactions": "ALL interactive elements (buttons, links, pills, cards) must have `hover:scale-105 transition-transform duration-300 ease-out`.",
+    "scroll": "Implement `@studio-freight/lenis` for smooth momentum scrolling. Map scroll events to framer-motion `useScroll` for below-the-fold reveals."
+  },
+  "media": {
+    "video": {
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260315_073750_51473149-4350-4920-ae24-c8214286f323.mp4",
+      "usage": "Fullscreen hero background, looping, muted, playsInline, object-cover, z-index 0."
+    },
+    "images": [
+      {
+        "category": "Right Panel Feature Thumbnail",
+        "url": "https://images.unsplash.com/photo-1549569485-1b0c5bf30005?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHw0fHxyZXNjdWUlMjBjb29yZGluYXRpb258ZW58MHx8fGJsYWNrX2FuZF93aGl0ZXwxNzg3MjE1OTczfDA&ixlib=rb-4.1.0&q=85",
+        "description": "Grayscale photography of army/rescue coordination (96x64 px thumbnail inside bottom right feature card)."
+      }
+    ]
+  },
+  "icons": {
+    "library": "lucide-react",
+    "required_icons": ["Menu", "ArrowRight", "Twitter", "Linkedin", "Instagram", "Sparkles", "Wand2", "BookOpen", "Plus"]
+  },
+  "accessibility": {
+    "contrast": "Ensure sufficient contrast of text over the video background using the liquid-glass layers.",
+    "testing": "All interactive and key informational elements MUST include a `data-testid` attribute (e.g., `data-testid=\"hero-cta-button\"`, `data-testid=\"menu-button\"`).",
+    "motion": "Respect `prefers-reduced-motion` for Framer Motion animations."
+  },
+  "instructions_to_main_agent": [
+    "Install required dependencies: framer-motion, @studio-freight/lenis, react-fast-marquee, lucide-react.",
+    "Add Poppins and Source Serif 4 to index.css or via Google Fonts in index.html.",
+    "Append .liquid-glass and .liquid-glass-strong exactly as defined in the visual_enhancers to the index.css @layer components.",
+    "Do NOT use any Tailwind border classes (e.g., border, border-white). All borders are handled by the custom CSS ::before mask.",
+    "Ensure layout is exactly split 52% left, 48% right on large screens, with the left panel acting as a floating glass card.",
+    "Strictly follow the grayscale palette. NO colors. If you need shades, use white with opacity (white/80, white/60, etc).",
+    "Replace 'Bloom' copy with 'RESQNET' and disaster coordination language.",
+    "Ensure the hero header (text-6xl/7xl) has negative tracking and incorporates an italicized Source Serif 4 span.",
+    "Implement Lenis smooth scroll wrapping the entire app.",
+    "Create the slow Marquee below the fold followed by the manifesto 01/02/03."
+  ],
+  "universal_guidelines_for_main_agent": [
+    "Never center align the app container in App.css (.App { text-align: center; } is strictly forbidden).",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations.",
+    "Never apply universal transitions (transition: all). Target specific properties like transform and opacity.",
+    "Never use placeholder URLs. Use the provided image URLs.",
+    "Create depth through layered design elements with z-index hierarchy."
+  ]
+}
