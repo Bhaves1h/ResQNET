@@ -1,4 +1,5 @@
 import { ArrowUpRight } from "lucide-react";
+import { motion } from "framer-motion";
 
 const LINKS = [
   { label: "Home", href: "/", id: "top-link-home" },
@@ -8,7 +9,10 @@ const LINKS = [
 
 export default function TopBar() {
   return (
-    <nav
+    <motion.nav
+      initial={{ opacity: 0, y: -28 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
       className="fixed top-4 left-1/2 -translate-x-1/2 z-40 liquid-glass-strong rounded-full pl-2 pr-2 py-1.5 flex items-center gap-1 shadow-2xl"
       data-testid="top-bar"
     >
@@ -42,6 +46,6 @@ export default function TopBar() {
         Command Center
         <ArrowUpRight size={13} />
       </a>
-    </nav>
+    </motion.nav>
   );
 }
