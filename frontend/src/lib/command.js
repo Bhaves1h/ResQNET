@@ -98,3 +98,28 @@ export const km = (a, b) => {
       Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.asin(Math.sqrt(s));
 };
+
+// ---- simulated en-route motion (matches backend AVG_RESPONSE_SPEED_KMH) ----
+export const AVG_SPEED_KMH = 30;
+
+const lerp = (a, b, t) => a + (b - a) * t;
+
+// Derives a unit's current simulated position + ETA purely from the persisted
+// dispatch timestamp + static coordinates — safe to recompute after a refresh.
+export const computeEnRoute = (assignment, unit, incident) => {
+  if (!assignment?.dispatchedAt || !unit || !incident) return null;
+  const origin = { lat: unit.latitude, lng: unit.longitude };
+  const dest = { lat: incident.latitude, lng: incident.longitude };
+  const distanceKm = km(origin, dest);
+  const totalMinutes = Math.max(0.5, (distanceKm / AVG_SPEED_KMH) * 60);
+  const elapsedMinutes = (Date.now() - new Date(assignment.dispatchedAt).getTime()) / 60000;
+  const fraction = Math.min(1, Math.max(0, elapsedMinutes / totalMinutes));
+  return {
+    position: { lat: lerp(origin.lat, dest.lat, fraction), lng: lerp(origin.lng, dest.lng, fraction) },
+    origin,
+    dest,
+    fraction,
+    etaMinutes: Math.max(0, Math.ceil(totalMinutes - elapsedMinutes)),
+    arrived: fraction >= 1,
+  };
+};

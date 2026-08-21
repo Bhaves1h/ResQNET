@@ -14,6 +14,7 @@ BASE_URL = base_url.rstrip("/")
 API = f"{BASE_URL}/api"
 
 AGENCY_ID = "AGY-04"  # disaster_response
+RESOLVE_AGENCY_ID = "AGY-02"  # medical — isolated from AGENCY_ID to avoid unit-pool races with TestDispatch
 FOREIGN_UNIT = "UNIT-001"  # AGY-01
 
 
@@ -283,10 +284,9 @@ class TestDispatch:
         )
         assert r.status_code == 422
 
-
-# ---- unit status ----
-class TestUnitStatus:
     def test_patch_status_on_scene_creates_event(self, client, flood_incident):
+        # Kept in this class (not TestUnitStatus) so loadscope pins it to the same
+        # worker as test_dispatch_own_unit, which sets pytest.dispatched_unit.
         unit_id = getattr(pytest, "dispatched_unit", None)
         assert unit_id
         r = client.patch(f"{API}/units/{unit_id}/status", json={"status": "ON_SCENE"},
@@ -297,6 +297,9 @@ class TestUnitStatus:
         events = client.get(f"{API}/incidents/{flood_incident['id']}/events").json()
         assert "UNIT_ARRIVED" in [e["type"] for e in events]
 
+
+# ---- unit status ----
+class TestUnitStatus:
     def test_patch_invalid_status(self, client):
         unit_id = getattr(pytest, "dispatched_unit", "UNIT-012")
         r = client.patch(f"{API}/units/{unit_id}/status", json={"status": "NAPPING"},
@@ -306,4 +309,82 @@ class TestUnitStatus:
     def test_patch_unknown_unit(self, client):
         r = client.patch(f"{API}/units/UNIT-XXX/status", json={"status": "AVAILABLE"},
                          headers={"X-Role": "AGENCY_OPERATOR"})
+        assert r.status_code == 404
+
+
+# ---- resolve ----
+@pytest.fixture(scope="class")
+def resolve_incident_fx(client):
+    """Dedicated incident + agency, dispatched + on-scene, ready for resolve tests."""
+    r = client.post(f"{API}/incidents/report", json={
+        "type": "MEDICAL", "latitude": 21.1355, "longitude": 79.0616,
+        "description": "TEST_ resolve flow",
+        "requestedAgencies": ["medical"],
+        "reporterId": f"qa-resolve-{uuid.uuid4().hex[:6]}",
+    })
+    assert r.status_code == 201, r.text
+    incident = r.json()
+    iid = incident["id"]
+    h = {"X-Role": "AGENCY_OPERATOR"}
+    client.post(f"{API}/incidents/{iid}/accept", json={"agencyId": RESOLVE_AGENCY_ID}, headers=h)
+    recs = client.get(f"{API}/incidents/{iid}/recommendations",
+                      params={"agencyId": RESOLVE_AGENCY_ID}).json()["recommendations"]
+    unit_id = recs[0]["unitId"]
+    d = client.post(
+        f"{API}/incidents/{iid}/dispatch",
+        json={"unitIds": [unit_id]},
+        headers={"X-Role": "AGENCY_OPERATOR", "X-Agency-Id": RESOLVE_AGENCY_ID},
+    )
+    assert d.status_code == 200, d.text
+    return {"incident_id": iid, "unit_id": unit_id}
+
+
+class TestResolve:
+    def test_resolve_blocked_when_not_active(self, client):
+        r = client.post(f"{API}/incidents/report", json={
+            "type": "FIRE", "latitude": 21.11, "longitude": 79.05,
+            "requestedAgencies": ["fire"],
+            "reporterId": f"qa-resolve-blocked-{uuid.uuid4().hex[:6]}",
+        })
+        assert r.status_code == 201, r.text
+        iid = r.json()["id"]
+        rr = client.post(f"{API}/incidents/{iid}/resolve", headers={"X-Role": "AGENCY_OPERATOR"})
+        assert rr.status_code == 409
+        assert rr.json()["error"]["code"] == "INCIDENT_NOT_RESOLVABLE"
+
+    def test_on_scene_auto_transitions_incident(self, client, resolve_incident_fx):
+        iid = resolve_incident_fx["incident_id"]
+        unit_id = resolve_incident_fx["unit_id"]
+        inc = client.get(f"{API}/incidents/{iid}").json()
+        assert inc["status"] == "RESPONDING"
+        r = client.patch(f"{API}/units/{unit_id}/status", json={"status": "ON_SCENE"},
+                         headers={"X-Role": "AGENCY_OPERATOR"})
+        assert r.status_code == 200, r.text
+        inc = client.get(f"{API}/incidents/{iid}").json()
+        assert inc["status"] == "ON_SCENE"
+        events = client.get(f"{API}/incidents/{iid}/events").json()
+        assert "INCIDENT_ON_SCENE" in [e["type"] for e in events]
+
+    def test_resolve_returns_unit_to_available(self, client, resolve_incident_fx):
+        iid = resolve_incident_fx["incident_id"]
+        unit_id = resolve_incident_fx["unit_id"]
+        r = client.post(f"{API}/incidents/{iid}/resolve", headers={"X-Role": "AGENCY_OPERATOR"})
+        assert r.status_code == 200, r.text
+        inc = r.json()
+        assert inc["status"] == "RESOLVED"
+        assert inc["resolvedAt"] is not None
+        assert client.get(f"{API}/units/{unit_id}").json()["status"] == "AVAILABLE"
+        events = client.get(f"{API}/incidents/{iid}/events").json()
+        types = [e["type"] for e in events]
+        assert "INCIDENT_RESOLVED" in types
+        assert "UNIT_COMPLETED" in types
+
+    def test_resolve_already_resolved_conflict(self, client, resolve_incident_fx):
+        iid = resolve_incident_fx["incident_id"]
+        r = client.post(f"{API}/incidents/{iid}/resolve", headers={"X-Role": "AGENCY_OPERATOR"})
+        assert r.status_code == 409
+        assert r.json()["error"]["code"] == "INCIDENT_NOT_RESOLVABLE"
+
+    def test_resolve_unknown_incident(self, client):
+        r = client.post(f"{API}/incidents/INC-9999/resolve", headers={"X-Role": "AGENCY_OPERATOR"})
         assert r.status_code == 404

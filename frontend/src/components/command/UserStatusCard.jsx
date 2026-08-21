@@ -1,5 +1,5 @@
 import { X, MapPin } from "lucide-react";
-import { incidentLabel, agencyTypeLabel, STATUS_LABEL, SEVERITY_COLOR, km } from "@/lib/command";
+import { incidentLabel, agencyTypeLabel, STATUS_LABEL, SEVERITY_COLOR, km, computeEnRoute } from "@/lib/command";
 
 const unitEta = (unit, incident) => {
   if (!unit) return null;
@@ -94,13 +94,18 @@ export default function UserStatusCard({ incident, onClose }) {
               <div className="flex flex-col">
                 <span className="text-sm text-white">{a.unit?.name || a.unitId}</span>
                 <span className="text-[11px] text-white/50">
-                  {a.status.replace(/_/g, " ")}
+                  {(a.unit?.status || a.status).replace(/_/g, " ")}
                 </span>
               </div>
-              {(a.status === "DISPATCHED" || a.status === "EN_ROUTE") && a.unit && (
+              {a.unit?.status === "EN_ROUTE" && (
+                <span className="text-xs text-white/70">
+                  ETA {computeEnRoute(a, a.unit, incident)?.etaMinutes ?? unitEta(a.unit, incident)} min
+                </span>
+              )}
+              {a.status === "DISPATCHED" && a.unit?.status !== "EN_ROUTE" && a.unit && (
                 <span className="text-xs text-white/70">ETA {unitEta(a.unit, incident)} min</span>
               )}
-              {a.status === "ON_SCENE" && (
+              {a.unit?.status === "ON_SCENE" && (
                 <span className="text-xs text-emerald-300">On scene</span>
               )}
             </div>

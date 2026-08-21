@@ -13,7 +13,7 @@ export default function TopBar() {
       initial={{ opacity: 0, y: -28 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.7, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-      className="fixed top-4 left-1/2 -translate-x-1/2 z-40 liquid-glass-strong rounded-full pl-2 pr-2 py-1.5 flex items-center gap-1 shadow-2xl"
+      className="fixed top-4 left-4 z-40 liquid-glass-strong rounded-full pl-2 pr-2 py-1.5 flex items-center gap-1 shadow-2xl"
       data-testid="top-bar"
     >
       <a

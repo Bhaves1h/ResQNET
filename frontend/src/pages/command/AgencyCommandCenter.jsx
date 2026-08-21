@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { Toaster, toast } from "sonner";
@@ -7,7 +7,7 @@ import MapView from "@/components/command/MapView";
 import CommandNav from "@/components/command/CommandNav";
 import AgencyIncidentPanel from "@/components/command/AgencyIncidentPanel";
 import AgencyUnitsPanel from "@/components/command/AgencyUnitsPanel";
-import { API, NAGPUR, getRole, getAgency, clearRole, SEVERITY_COLOR } from "@/lib/command";
+import { API, NAGPUR, getRole, getAgency, clearRole, SEVERITY_COLOR, km, computeEnRoute } from "@/lib/command";
 
 const UNIT_COLOR = {
   AVAILABLE: "#4ade80",
@@ -17,6 +17,7 @@ const UNIT_COLOR = {
   OFFLINE: "#6b7280",
   COMPLETED: "#a1a1aa",
 };
+
 
 export default function AgencyCommandCenter() {
   const navigate = useNavigate();
@@ -34,6 +35,10 @@ export default function AgencyCommandCenter() {
   const [selectedUnits, setSelectedUnits] = useState([]);
   const [accepting, setAccepting] = useState(false);
   const [dispatching, setDispatching] = useState(false);
+  const [events, setEvents] = useState([]);
+  const [resolving, setResolving] = useState(false);
+  const [tick, setTick] = useState(0);
+  const arrivedRef = useRef(new Set());
 
   const headers = agency
     ? { "X-Role": "AGENCY_OPERATOR", "X-Agency-Id": agency.id }
@@ -42,6 +47,12 @@ export default function AgencyCommandCenter() {
   useEffect(() => {
     if (getRole() !== "AGENCY" || !getAgency()) navigate("/command");
   }, [navigate]);
+
+  // Ticks the clock so en-route units visibly move toward the incident.
+  useEffect(() => {
+    const i = setInterval(() => setTick((t) => t + 1), 800);
+    return () => clearInterval(i);
+  }, []);
 
   const fetchAll = useCallback(async () => {
     if (!agency) return;
@@ -64,9 +75,13 @@ export default function AgencyCommandCenter() {
   }, [fetchAll]);
 
   const loadDetail = useCallback(async (id) => {
-    const r = await axios.get(`${API}/incidents/${id}`);
-    setDetail(r.data);
-    return r.data;
+    const [detailRes, eventsRes] = await Promise.all([
+      axios.get(`${API}/incidents/${id}`),
+      axios.get(`${API}/incidents/${id}/events`),
+    ]);
+    setDetail(detailRes.data);
+    setEvents(eventsRes.data);
+    return detailRes.data;
   }, []);
 
   useEffect(() => {
@@ -74,6 +89,23 @@ export default function AgencyCommandCenter() {
     const i = setInterval(() => loadDetail(selectedId).catch(() => {}), 6000);
     return () => clearInterval(i);
   }, [selectedId, loadDetail]);
+
+  // Watches en-route units on the open incident; once the simulated position
+  // reaches the incident, promotes the unit to ON SCENE via the real backend
+  // endpoint so the transition is persisted (survives a refresh).
+  useEffect(() => {
+    if (!detail || detail.id !== selectedId) return;
+    (detail.assignments || [])
+      .filter((a) => a.unit?.agencyId === agency?.id && a.unit?.status === "EN_ROUTE")
+      .forEach((a) => {
+        const state = computeEnRoute(a, a.unit, detail);
+        if (state?.arrived && !arrivedRef.current.has(a.id)) {
+          arrivedRef.current.add(a.id);
+          updateUnitStatus(a.unitId, "ON_SCENE", true);
+        }
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick, detail, selectedId, agency?.id]);
 
   const generateRecs = useCallback(
     async (id) => {
@@ -144,14 +176,27 @@ export default function AgencyCommandCenter() {
     }
   };
 
-  const updateUnitStatus = async (unitId, status) => {
+  const updateUnitStatus = async (unitId, status, silent = false) => {
     try {
       await axios.patch(`${API}/units/${unitId}/status`, { status }, { headers });
-      toast.success(`Unit → ${status.replace(/_/g, " ")}`);
+      if (!silent) toast.success(`Unit → ${status.replace(/_/g, " ")}`);
       await fetchAll();
       if (selectedId) loadDetail(selectedId);
     } catch (err) {
-      toast.error(err.response?.data?.error?.message || "Update failed");
+      if (!silent) toast.error(err.response?.data?.error?.message || "Update failed");
+    }
+  };
+
+  const resolveIncident = async () => {
+    setResolving(true);
+    try {
+      await axios.post(`${API}/incidents/${selectedId}/resolve`, {}, { headers });
+      toast.success("Incident resolved — units returned to available");
+      await Promise.all([fetchAll(), loadDetail(selectedId)]);
+    } catch (err) {
+      toast.error(err.response?.data?.error?.message || "Could not resolve incident");
+    } finally {
+      setResolving(false);
     }
   };
 
@@ -164,6 +209,23 @@ export default function AgencyCommandCenter() {
 
   const accepted = (detail?.responses || []).some((r) => r.agencyId === agency.id);
 
+  // En-route units belonging to the open incident: interpolate their position
+  // along the dispatch → incident line using the persisted dispatchedAt timestamp.
+  const enRouteAssignments =
+    detail && detail.id === selectedId
+      ? (detail.assignments || []).filter(
+          (a) => a.unit?.agencyId === agency.id && a.unit?.status === "EN_ROUTE"
+        )
+      : [];
+  const enRouteByUnit = {};
+  const routes = [];
+  enRouteAssignments.forEach((a) => {
+    const state = computeEnRoute(a, a.unit, detail);
+    if (!state) return;
+    enRouteByUnit[a.unitId] = state;
+    routes.push({ id: `route-${a.id}`, from: state.origin, to: state.dest, color: "#5aa9ff" });
+  });
+
   const markers = [];
   incidents.forEach((inc) =>
     markers.push({
@@ -175,14 +237,18 @@ export default function AgencyCommandCenter() {
       onClick: () => selectIncident(inc.id),
     })
   );
-  units.forEach((u) =>
+  units.forEach((u) => {
+    const moving = enRouteByUnit[u.id];
+    const dist = detail ? km({ lat: u.latitude, lng: u.longitude }, { lat: detail.latitude, lng: detail.longitude }).toFixed(1) : null;
     markers.push({
       id: u.id,
-      lat: u.latitude,
-      lng: u.longitude,
+      lat: moving ? moving.position.lat : u.latitude,
+      lng: moving ? moving.position.lng : u.longitude,
       color: UNIT_COLOR[u.status] || "#4ade80",
-    })
-  );
+      pulse: !!moving,
+      tooltip: `${u.name} · ${u.status.replace(/_/g, " ")}${moving ? ` · ETA ${moving.etaMinutes} min` : ""} · workload ${u.workload}/4${dist ? ` · ${dist} km away` : ""}`,
+    });
+  });
 
   const navItems = [
     { key: "map", label: "Map", icon: MapIcon },
@@ -206,9 +272,9 @@ export default function AgencyCommandCenter() {
   };
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-[#05070a]" data-testid="agency-command-center">
+    <div className="relative w-screen h-screen overflow-hidden bg-[#05070a]" data-testid="agency-command-center" data-tick={tick}>
       <Toaster theme="dark" position="top-center" />
-      <MapView markers={markers} flyTo={flyTo} />
+      <MapView markers={markers} routes={routes} flyTo={flyTo} />
 
       <CommandNav
         items={navItems}
@@ -267,7 +333,7 @@ export default function AgencyCommandCenter() {
               <div className="flex flex-col flex-1">
                 <span className="text-sm text-white leading-tight">{inc.title}</span>
                 <span className="text-[11px] text-white/45">
-                  {inc.severity} · {inc.status}
+                  {inc.severity} · {km({ lat: agency.latitude, lng: agency.longitude }, { lat: inc.latitude, lng: inc.longitude }).toFixed(1)} km · {inc.status}
                   {(inc.responses || []).some((r) => r.agencyId === agency.id) && " · accepted"}
                 </span>
               </div>
@@ -291,6 +357,9 @@ export default function AgencyCommandCenter() {
             onToggleUnit={toggleUnit}
             onDispatch={dispatch}
             dispatching={dispatching}
+            events={events}
+            onResolve={resolveIncident}
+            resolving={resolving}
             onClose={() => {
               setSelectedId(null);
               setDetail(null);

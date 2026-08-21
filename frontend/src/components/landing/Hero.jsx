@@ -54,23 +54,6 @@ export default function Hero() {
           data-testid="hero-glass-panel"
         />
         <div className="relative z-10 flex flex-col flex-1 justify-between px-8 py-8 lg:px-14 lg:py-12">
-          <motion.nav
-            {...fadeUp(0.1)}
-            className="flex items-center justify-between"
-            data-testid="hero-nav"
-          >
-            <a
-              href="/"
-              className="flex items-center gap-3 hover:scale-105 transition-transform duration-300"
-              data-testid="brand-logo"
-            >
-              <img src="/logo.png" alt="ResQNET logo" className="w-8 h-8" />
-              <span className="text-2xl font-semibold tracking-tighter text-white">
-                ResQNET
-              </span>
-            </a>
-          </motion.nav>
-
           <div className="flex flex-col items-start gap-8 py-14">
             <motion.img
               {...fadeUp(0.25)}

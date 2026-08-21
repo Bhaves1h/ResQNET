@@ -14,6 +14,7 @@ import {
   getReporterId,
   clearRole,
   SEVERITY_COLOR,
+  computeEnRoute,
 } from "@/lib/command";
 
 const EMPTY_DRAFT = { type: null, agencies: [], description: "", lat: null, lng: null };
@@ -70,6 +71,13 @@ export default function UserCommandCenter() {
     const i = setInterval(() => loadDetail(selected), 6000);
     return () => clearInterval(i);
   }, [selected, loadDetail]);
+
+  // Ticks the clock so an en-route unit's marker visibly moves toward the incident.
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const i = setInterval(() => setTick((t) => t + 1), 800);
+    return () => clearInterval(i);
+  }, []);
 
   const useMyLocation = () => {
     if (!navigator.geolocation) {
@@ -138,6 +146,7 @@ export default function UserCommandCenter() {
   };
 
   const markers = [];
+  const routes = [];
   if (myLocation && !addOpen)
     markers.push({ id: "me", ...myLocation, color: "#5aa9ff", glyph: "", pulse: true });
   if (draft.lat != null && addOpen)
@@ -156,6 +165,24 @@ export default function UserCommandCenter() {
       },
     })
   );
+  // Visualize an en-route responder heading to the citizen's own open incident.
+  if (detail && detail.id === selected) {
+    (detail.assignments || [])
+      .filter((a) => a.unit?.status === "EN_ROUTE")
+      .forEach((a) => {
+        const state = computeEnRoute(a, a.unit, detail);
+        if (!state) return;
+        routes.push({ id: `route-${a.id}`, from: state.origin, to: state.dest, color: "#5aa9ff" });
+        markers.push({
+          id: `unit-${a.unitId}`,
+          lat: state.position.lat,
+          lng: state.position.lng,
+          color: "#5aa9ff",
+          pulse: true,
+          tooltip: `${a.unit.name} · EN ROUTE · ETA ${state.etaMinutes} min`,
+        });
+      });
+  }
 
   const navItems = [
     { key: "map", label: "Map", icon: MapIcon },
@@ -163,10 +190,11 @@ export default function UserCommandCenter() {
   ];
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-[#05070a]" data-testid="user-command-center">
+    <div className="relative w-screen h-screen overflow-hidden bg-[#05070a]" data-testid="user-command-center" data-tick={tick}>
       <Toaster theme="dark" position="top-center" />
       <MapView
         markers={markers}
+        routes={routes}
         flyTo={flyTo}
         onMapClick={handleMapClick}
         cursorCrosshair={selectingOnMap}

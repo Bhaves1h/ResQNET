@@ -195,6 +195,20 @@ async def update_unit_status(
                     {"unitId": unit_id, "unitName": unit["name"], "role": role},
                 )
             )
+        if body.status.value == "ON_SCENE":
+            incident = await db.incidents.find_one({"id": assignment["incidentId"]}, {"_id": 0})
+            if incident and incident["status"] == "RESPONDING":
+                await db.incidents.update_one(
+                    {"id": incident["id"]}, {"$set": {"status": "ON_SCENE", "updatedAt": now_iso()}}
+                )
+                await db.incident_events.insert_one(
+                    new_event(
+                        incident["id"],
+                        "INCIDENT_ON_SCENE",
+                        f"Responders on scene at {incident['title']}",
+                        {"role": role},
+                    )
+                )
     return await db.units.find_one({"id": unit_id}, {"_id": 0})
 
 
@@ -472,6 +486,56 @@ async def dispatch_units(
 
     updated = await get_incident_or_404(incident_id)
     return {"incident": updated, "assignments": assignments}
+
+
+@api_router.post("/incidents/{incident_id}/resolve")
+async def resolve_incident(
+    incident_id: str,
+    role: str = Depends(require_role("ADMIN", "DISPATCHER", "AGENCY_OPERATOR")),
+):
+    """Complete an incident: RESOLVED + return its active units to AVAILABLE."""
+    incident = await get_incident_or_404(incident_id)
+    if incident["status"] not in {"RESPONDING", "ON_SCENE", "CONTROLLED"}:
+        raise ApiError(
+            "INCIDENT_NOT_RESOLVABLE",
+            f"Incident {incident_id} is {incident['status']} and cannot be resolved yet.",
+            409,
+        )
+    ts = now_iso()
+    active_assignments = await db.incident_units.find(
+        {"incidentId": incident_id, "status": {"$in": list(ACTIVE_ASSIGNMENT_STATUSES)}}, {"_id": 0}
+    ).to_list(100)
+    unit_ids = [a["unitId"] for a in active_assignments]
+    events = [
+        new_event(incident_id, "INCIDENT_RESOLVED", f"Incident {incident_id} resolved", {"role": role})
+    ]
+    if unit_ids:
+        units_by_id = {
+            u["id"]: u
+            for u in await db.units.find({"id": {"$in": unit_ids}}, {"_id": 0}).to_list(100)
+        }
+        await db.incident_units.update_many(
+            {"incidentId": incident_id, "unitId": {"$in": unit_ids}},
+            {"$set": {"status": "COMPLETED", "completedAt": ts}},
+        )
+        await db.units.update_many(
+            {"id": {"$in": unit_ids}}, {"$set": {"status": "AVAILABLE", "updatedAt": ts}}
+        )
+        for uid in unit_ids:
+            name = units_by_id.get(uid, {}).get("name", uid)
+            events.append(
+                new_event(
+                    incident_id,
+                    "UNIT_COMPLETED",
+                    f"{name} returned to available",
+                    {"unitId": uid, "role": role},
+                )
+            )
+    await db.incidents.update_one(
+        {"id": incident_id}, {"$set": {"status": "RESOLVED", "resolvedAt": ts, "updatedAt": ts}}
+    )
+    await db.incident_events.insert_many(events)
+    return await get_incident_or_404(incident_id)
 
 
 app.include_router(api_router)
