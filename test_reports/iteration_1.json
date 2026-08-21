@@ -1,0 +1,53 @@
+{
+  "summary": "Full both-side test of the ResQNet Command Center. Backend: created /app/backend/tests/test_command_center.py (26 new tests) covering citizen report + derivation, reporter filtering, agency-scoped incident feed, agency-scoped ranked recommendations with capability hard filter, accept (+idempotency, role guard), dispatch (own vs foreign unit 403, busy 409, empty payload 422) and unit status PATCH + event creation. Combined with the pre-existing test_recommendation.py: 37/37 pytest tests pass. Frontend: full E2E via Playwright — role selection, USER 3-step report flow (type -> select-on-map -> agency chips -> report), success toast, status card 'Response requested', My Incidents list; AGENCY flow with AGY-04 (NDRF): incident list, detail panel, Accept -> accepted banner + agency-scoped recommendations (score/distance/ETA/capability), unit selection + dispatch (toast 'Dispatched 1 unit(s) — EN ROUTE'), My Units status change to ON_SCENE with persistence. Cross-role E2E verified: after agency dispatch, the same citizen's status card escalates to 'Response confirmed' with 'Responding' + 'Rescue Unit 12 DISPATCHED / ETA'. Zero console/page errors in all runs.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/incidents/report (and POST /api/incidents)", "issue": "Incident ID is generated as `INC-{count_documents+1}` which is not race-safe. 8 concurrent reports produced a duplicate ID: ['INC-0017','INC-0023','INC-0017','INC-0020','INC-0021','INC-0019','INC-0016','INC-0022'] (7 unique of 8). Two different incidents can share an ID, which corrupts detail/accept/dispatch/events lookups (find_one returns the wrong doc). Use uuid-based ids or an atomic counter (findAndModify on a counters collection) plus a unique index on `incidents.id`.", "priority": "CRITICAL"}
+    ],
+    "minor": [
+      {"endpoint": "POST /api/incidents/{id}/dispatch", "issue": "Agency ownership check is skipped entirely when X-Agency-Id header is absent (`if role == 'AGENCY_OPERATOR' and x_agency_id`). An AGENCY_OPERATOR that omits the header can dispatch any agency's units. Make the header mandatory for AGENCY_OPERATOR (400/403 if missing)."},
+      {"endpoint": "GET /api/incidents/{id}/recommendations", "issue": "A read-only GET writes UNIT_RECOMMENDED rows into incident_events on every call; the agency UI polls/regenerates recs after accept and after each dispatch, so the event log inflates quickly. Consider not persisting events on GET or de-duplicating."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "MapView", "issue": "FIXED BY TESTER: `data-testid=\"command-map\"` was passed to react-leaflet <MapContainer>, which does not forward unknown DOM props, so the attribute never rendered and the map was untestable/unlocatable. Wrapped the MapContainer in an absolute inset-0 div carrying data-testid=\"command-map\" (no visual change).", "selector": "[data-testid=\"command-map\"]", "priority": "MEDIUM"},
+      {"component": "Toaster (sonner) vs CommandNav", "issue": "Toast is rendered at position top-center and overlaps the floating MacBook-style nav (toast box y=24..97, nav y=16..60). document.elementFromPoint over the nav items returns the toast element, so 'Map'/'My Incidents'/'Incidents'/'My Units' tabs are unclickable for the toast duration. Move Toaster to bottom-center / top-right or offset it below the nav.", "selector": "[data-sonner-toast] over [data-testid=\"command-nav\"]", "priority": "HIGH"},
+      {"component": "AgencyUnitsPanel", "issue": "The status <select> only has AVAILABLE/EN_ROUTE/ON_SCENE/COMPLETED and falls back to displaying 'AVAILABLE' for units whose real status is BUSY or OFFLINE (verified: NDRF Team Bravo shows a yellow BUSY dot but the select reads AVAILABLE). Operator sees a wrong current state and an accidental change can silently overwrite a real status.", "selector": "[data-testid^=\"agency-unit-status-\"]", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Role select / Agency picker / My Units", "issues": ["Native browser <select> used for the agency picker and unit status instead of the shadcn Select component — inconsistent with the glass design system and shows the OS dropdown.", "Agency picker dropdown closed text is white-on-white/5; option list relies on bg-neutral-900 per-option which is a Chrome-only styling hack."]},
+      {"screen": "Agency incident panel", "issues": ["After a dispatch the recommendation list auto-preselects the next best unit (Dispatch selected (1)) — one stray click can dispatch another unit unintentionally; consider not pre-selecting after the first dispatch."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_command_center.py",
+    "/app/backend/tests/test_recommendation.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "CRITICAL: make incident ID generation race-safe (uuid or atomic counter) and add a unique index on incidents.id — duplicates reproduced with 8 concurrent reports.",
+    "Require X-Agency-Id for AGENCY_OPERATOR dispatch; currently the ownership check is bypassed when the header is missing.",
+    "Move the sonner Toaster off the floating nav (it blocks nav clicks while visible).",
+    "AgencyUnitsPanel: show the real unit status (include BUSY/OFFLINE as read-only options) instead of defaulting the select to AVAILABLE.",
+    "Optional: stop writing UNIT_RECOMMENDED events on the GET recommendations endpoint."
+  ],
+  "critical_code_review_comments": [
+    "server.py: `count_documents({}) + 1` for both /incidents and /incidents/report is a classic non-atomic ID generator — proven duplicate under concurrency.",
+    "server.py dispatch: ownership guard is conditional on an optional header — treat a missing X-Agency-Id as 403 for AGENCY_OPERATOR.",
+    "MapContainer (react-leaflet) silently drops arbitrary DOM props; keep data-testid on a wrapper element (done) for future map testids.",
+    "GET endpoints should not mutate state (recommendations inserts events)."
+  ],
+  "updated_files": [
+    "/app/frontend/src/components/command/MapView.jsx",
+    "/app/backend/tests/test_command_center.py"
+  ],
+  "success_rate": {"backend": "100% (37/37 pytest) with 1 concurrency defect found outside pytest", "frontend": "100% of requested flows after adding the missing command-map testid"},
+  "seed_data_creation": "Reseeded with `python3 seed.py` (10 agencies, 36 units, 6 incidents) before E2E. Tests created citizen incidents with reporterIds prefixed qa-reporter-/qa-accept-/qa-concur- plus UI-reported incidents INC-0007/INC-0009; UNIT-011 left ON_SCENE and Rescue Unit 12 EN_ROUTE/DISPATCHED — reseed before a demo.",
+  "should_call_test_agent_after_fix": true,
+  "should_main_agent_self_test": false,
+  "test_credentials": "No login — frictionless role selection; agency actions use X-Role: AGENCY_OPERATOR + X-Agency-Id (AGY-04 used).",
+  "context_for_next_testing_agent": "Backend suite: /app/backend/tests/test_command_center.py (pytest-xdist is on, so give each class its own incident fixture — status mutations across workers cause false failures). Frontend: command-map testid now lives on a wrapper div. Geolocation is denied in headless (app shows a graceful toast) — always use 'Select on map'. After accept, the top recommendation is auto-selected, so do NOT click the first rec before dispatching or you deselect it. Role switch via user-exit-button/agency-exit-button keeps resqnet_reporter_id, enabling the cross-role user->agency->user verification.",
+  "rca_of_the_issue": "Duplicate incident IDs: report_incident computes the next id from db.incidents.count_documents({}) then inserts, so concurrent requests read the same count and build the same id; there is no unique index on incidents.id so both inserts succeed. Reproduced with 8 parallel POST /api/incidents/report (INC-0017 twice). Mitigation: uuid4-based id or an atomic $inc counter document + unique index."
+}

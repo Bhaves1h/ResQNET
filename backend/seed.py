@@ -68,12 +68,12 @@ UNITS = [
 ]
 
 INCIDENTS = [
-    {"id": "INC-0001", "title": "Urban Flood — Ward 14, Nagpur", "type": "FLOOD", "severity": "CRITICAL", "status": "REPORTED", "latitude": 21.1245, "longitude": 79.0630, "description": "Severe waterlogging after flash rain; families stranded in low-lying homes near Ward 14.", "peopleAffected": 250, "requiredCapabilities": ["flood_rescue", "medical", "evacuation"]},
-    {"id": "INC-0002", "title": "Building Collapse — Itwari", "type": "BUILDING_COLLAPSE", "severity": "HIGH", "status": "RESPONDING", "latitude": 21.1550, "longitude": 79.0990, "description": "Partial collapse of a 3-storey residential structure; people feared trapped.", "peopleAffected": 18, "requiredCapabilities": ["urban_search_rescue", "medical", "firefighting"]},
-    {"id": "INC-0003", "title": "Road Accident — Zero Mile, NH-44", "type": "ROAD_ACCIDENT", "severity": "MODERATE", "status": "REPORTED", "latitude": 21.1480, "longitude": 79.0800, "description": "Multi-vehicle collision blocking the highway; injuries reported.", "peopleAffected": 6, "requiredCapabilities": ["medical", "traffic_control", "rescue"]},
-    {"id": "INC-0004", "title": "Market Fire — Sitabuldi", "type": "FIRE", "severity": "HIGH", "status": "ASSESSING", "latitude": 21.1456, "longitude": 79.0826, "description": "Fire in a crowded market block; smoke inhalation risk.", "peopleAffected": 40, "requiredCapabilities": ["firefighting", "evacuation", "crowd_control"]},
-    {"id": "INC-0005", "title": "Missing Person — Ambazari Lake", "type": "MISSING_PERSON", "severity": "LOW", "status": "REPORTED", "latitude": 21.1330, "longitude": 79.0430, "description": "Elderly person missing near the lake trail since morning.", "peopleAffected": 1, "requiredCapabilities": ["search"]},
-    {"id": "INC-0006", "title": "Chemical Leak — MIDC Hingna", "type": "HAZMAT", "severity": "MODERATE", "status": "CONTROLLED", "latitude": 21.1010, "longitude": 78.9950, "description": "Industrial gas leak contained; area cordoned.", "peopleAffected": 12, "requiredCapabilities": ["hazmat", "evacuation"]},
+    {"id": "INC-0001", "title": "Urban Flood — Ward 14, Nagpur", "type": "FLOOD", "severity": "CRITICAL", "status": "REPORTED", "latitude": 21.1245, "longitude": 79.0630, "description": "Severe waterlogging after flash rain; families stranded in low-lying homes near Ward 14.", "peopleAffected": 250, "requiredCapabilities": ["flood_rescue", "medical", "evacuation"], "requestedAgencies": ["disaster_response", "medical"], "source": "DISPATCH"},
+    {"id": "INC-0002", "title": "Building Collapse — Itwari", "type": "BUILDING_COLLAPSE", "severity": "HIGH", "status": "RESPONDING", "latitude": 21.1550, "longitude": 79.0990, "description": "Partial collapse of a 3-storey residential structure; people feared trapped.", "peopleAffected": 18, "requiredCapabilities": ["urban_search_rescue", "medical", "firefighting"], "requestedAgencies": ["disaster_response", "fire", "medical"], "source": "DISPATCH"},
+    {"id": "INC-0003", "title": "Road Accident — Zero Mile, NH-44", "type": "ROAD_ACCIDENT", "severity": "MODERATE", "status": "REPORTED", "latitude": 21.1480, "longitude": 79.0800, "description": "Multi-vehicle collision blocking the highway; injuries reported.", "peopleAffected": 6, "requiredCapabilities": ["medical", "traffic_control", "rescue"], "requestedAgencies": ["medical", "police"], "source": "DISPATCH"},
+    {"id": "INC-0004", "title": "Market Fire — Sitabuldi", "type": "FIRE", "severity": "HIGH", "status": "ASSESSING", "latitude": 21.1456, "longitude": 79.0826, "description": "Fire in a crowded market block; smoke inhalation risk.", "peopleAffected": 40, "requiredCapabilities": ["firefighting", "evacuation", "crowd_control"], "requestedAgencies": ["fire", "police"], "source": "DISPATCH"},
+    {"id": "INC-0005", "title": "Missing Person — Ambazari Lake", "type": "MISSING_PERSON", "severity": "LOW", "status": "REPORTED", "latitude": 21.1330, "longitude": 79.0430, "description": "Elderly person missing near the lake trail since morning.", "peopleAffected": 1, "requiredCapabilities": ["search"], "requestedAgencies": ["rescue", "police"], "source": "DISPATCH"},
+    {"id": "INC-0006", "title": "Chemical Leak — MIDC Hingna", "type": "HAZMAT", "severity": "MODERATE", "status": "CONTROLLED", "latitude": 21.1010, "longitude": 78.9950, "description": "Industrial gas leak contained; area cordoned.", "peopleAffected": 12, "requiredCapabilities": ["hazmat", "evacuation"], "requestedAgencies": ["disaster_response"], "source": "DISPATCH"},
 ]
 
 ASSIGNMENTS = [
@@ -95,7 +95,7 @@ def events():
 
 
 async def main():
-    for coll in ["agencies", "units", "incidents", "incident_units", "incident_events"]:
+    for coll in ["agencies", "units", "incidents", "incident_units", "incident_events", "incident_responses"]:
         await db[coll].delete_many({})
     await db.agencies.insert_many([{**a, "createdAt": NOW} for a in AGENCIES])
     await db.units.insert_many([

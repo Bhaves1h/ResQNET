@@ -1,17 +1,6 @@
 import { useRef } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
-import {
-  ArrowRight,
-  Twitter,
-  Linkedin,
-  Instagram,
-  Sparkles,
-  Wand2,
-  BookOpen,
-  Plus,
-  Download,
-} from "lucide-react";
-import MenuOverlay from "@/components/landing/MenuOverlay";
+import { Wand2, BookOpen } from "lucide-react";
 
 const EASE = [0.22, 1, 0.36, 1];
 
@@ -41,12 +30,6 @@ const PILLS = [
   { label: "Live Incident Map", id: "live-incident-map" },
   { label: "Smart Dispatch", id: "smart-dispatch" },
   { label: "Unified Command", id: "unified-command" },
-];
-
-const SOCIALS = [
-  { icon: Twitter, id: "social-twitter" },
-  { icon: Linkedin, id: "social-linkedin" },
-  { icon: Instagram, id: "social-instagram" },
 ];
 
 export default function Hero() {
@@ -81,19 +64,18 @@ export default function Hero() {
               className="flex items-center gap-3 hover:scale-105 transition-transform duration-300"
               data-testid="brand-logo"
             >
-              <img src="/logo.png" alt="ResQNet logo" className="w-8 h-8" />
+              <img src="/logo.png" alt="ResQNET logo" className="w-8 h-8" />
               <span className="text-2xl font-semibold tracking-tighter text-white">
-                resqnet
+                ResQNET
               </span>
             </a>
-            <MenuOverlay />
           </motion.nav>
 
           <div className="flex flex-col items-start gap-8 py-14">
             <motion.img
               {...fadeUp(0.25)}
               src="/logo.png"
-              alt="ResQNet mark"
+              alt="ResQNET mark"
               className="w-20 h-20"
               data-testid="hero-logo-large"
             />
@@ -108,16 +90,6 @@ export default function Hero() {
                 </em>
               </MaskedLine>
             </h1>
-            <motion.button
-              {...fadeUp(0.65)}
-              className="liquid-glass-strong rounded-full pl-7 pr-3 py-3 flex items-center gap-5 text-sm font-medium text-white hover:scale-105 active:scale-95 transition-transform duration-300"
-              data-testid="hero-cta-button"
-            >
-              Explore Now
-              <span className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center">
-                <Download size={13} />
-              </span>
-            </motion.button>
             <motion.div {...fadeUp(0.8)} className="flex flex-wrap gap-3">
               {PILLS.map((pill) => (
                 <span
@@ -157,41 +129,9 @@ export default function Hero() {
       {/* RIGHT PANEL */}
       <div className="hidden lg:flex relative w-[48%] min-h-screen flex-col p-12 pl-8">
         <motion.div
-          {...fadeUp(0.5)}
-          className="flex items-center justify-end gap-4"
-          data-testid="right-top-bar"
-        >
-          <div
-            className="liquid-glass rounded-full px-4 py-2 flex items-center gap-4"
-            data-testid="social-links-bar"
-          >
-            {SOCIALS.map(({ icon: Icon, id }) => (
-              <a
-                key={id}
-                href="#"
-                aria-label={id}
-                className="text-white hover:text-white/80 hover:scale-105 transition-all duration-300"
-                data-testid={id}
-              >
-                <Icon size={15} />
-              </a>
-            ))}
-            <span className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white">
-              <ArrowRight size={14} />
-            </span>
-          </div>
-          <button
-            className="liquid-glass w-11 h-11 rounded-full flex items-center justify-center text-white hover:scale-105 active:scale-95 transition-transform duration-300"
-            data-testid="account-button"
-          >
-            <Sparkles size={16} />
-          </button>
-        </motion.div>
-
-        <motion.div
           {...fadeUp(0.7)}
           style={{ y: yCommunity }}
-          className="liquid-glass rounded-3xl w-56 p-5 flex flex-col gap-2 mt-16 hover:scale-105 transition-transform duration-300"
+          className="liquid-glass rounded-3xl w-56 p-5 flex flex-col gap-2 mt-24 hover:scale-105 transition-transform duration-300"
           data-testid="community-card"
         >
           <h3 className="text-base font-medium text-white">Enter the network</h3>
@@ -250,12 +190,6 @@ export default function Hero() {
                 Multi-agency dispatch with human-approved control.
               </p>
             </div>
-            <button
-              className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white hover:scale-105 active:scale-95 transition-transform duration-300"
-              data-testid="feature-plus-button"
-            >
-              <Plus size={14} />
-            </button>
           </div>
         </motion.div>
       </div>

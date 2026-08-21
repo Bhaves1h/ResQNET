@@ -64,3 +64,17 @@ class UnitStatusUpdate(BaseModel):
 
 class DispatchRequest(BaseModel):
     unitIds: List[str] = Field(min_length=1)
+
+
+class UserIncidentReport(BaseModel):
+    type: IncidentType
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    description: str = Field(default="", max_length=500)
+    requestedAgencies: List[str] = Field(min_length=1)
+    reporterId: str = Field(min_length=3, max_length=80)
+    reporterName: Optional[str] = Field(default=None, max_length=80)
+
+
+class AcceptResponseRequest(BaseModel):
+    agencyId: str = Field(min_length=2)

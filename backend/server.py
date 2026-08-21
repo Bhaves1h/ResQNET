@@ -13,10 +13,20 @@ from starlette.middleware.cors import CORSMiddleware
 
 from config import (
     ACTIVE_ASSIGNMENT_STATUSES,
+    INCIDENT_CAPABILITY_MAP,
+    INCIDENT_SEVERITY_MAP,
     INCIDENT_STATUS_EVENT_MAP,
+    INCIDENT_TYPE_LABELS,
     UNIT_STATUS_EVENT_MAP,
 )
-from models import DispatchRequest, IncidentCreate, IncidentStatusUpdate, UnitStatusUpdate
+from models import (
+    AcceptResponseRequest,
+    DispatchRequest,
+    IncidentCreate,
+    IncidentStatusUpdate,
+    UnitStatusUpdate,
+    UserIncidentReport,
+)
 from services.dispatch import build_dispatch_events, validate_dispatch
 from services.recommendation import recommend
 
@@ -217,10 +227,79 @@ async def create_incident(
     return incident
 
 
+@api_router.post("/incidents/report", status_code=201)
+async def report_incident(body: UserIncidentReport):
+    """Public citizen incident report. Location + type + which agencies are needed."""
+    requested = [a for a in body.requestedAgencies if a]
+    if not requested:
+        raise ApiError("AGENCY_REQUIRED", "Select at least one type of help needed.", 422)
+    required_caps = INCIDENT_CAPABILITY_MAP.get(body.type.value, ["rescue"])
+    count = await db.incidents.count_documents({})
+    label = INCIDENT_TYPE_LABELS.get(body.type.value, "Emergency")
+    incident = {
+        "id": f"INC-{count + 1:04d}",
+        "title": f"{label} — reported via ResQNet",
+        "type": body.type.value,
+        "severity": INCIDENT_SEVERITY_MAP.get(body.type.value, "MODERATE"),
+        "status": "REPORTED",
+        "latitude": body.latitude,
+        "longitude": body.longitude,
+        "description": body.description or "",
+        "peopleAffected": 0,
+        "requiredCapabilities": required_caps,
+        "requestedAgencies": requested,
+        "reporterId": body.reporterId,
+        "reporterName": body.reporterName,
+        "source": "CITIZEN",
+        "reportedAt": now_iso(),
+        "resolvedAt": None,
+        "createdAt": now_iso(),
+        "updatedAt": now_iso(),
+    }
+    await db.incidents.insert_one(incident)
+    await db.incident_events.insert_one(
+        new_event(
+            incident["id"],
+            "INCIDENT_CREATED",
+            f"Citizen reported: {label}",
+            {"severity": incident["severity"], "requestedAgencies": requested, "source": "CITIZEN"},
+        )
+    )
+    incident.pop("_id", None)
+    return incident
+
+
 @api_router.get("/incidents")
-async def list_incidents(status: str = None):
-    query = {"status": status.upper()} if status else {}
+async def list_incidents(status: str = None, reporterId: str = None):
+    query = {}
+    if status:
+        query["status"] = status.upper()
+    if reporterId:
+        query["reporterId"] = reporterId
     return await db.incidents.find(query, {"_id": 0}).sort("createdAt", -1).to_list(500)
+
+
+@api_router.get("/agencies/{agency_id}/incidents")
+async def agency_incidents(agency_id: str):
+    """Active incidents relevant to an agency (its type requested, or unrouted)."""
+    agency = await db.agencies.find_one({"id": agency_id}, {"_id": 0})
+    if not agency:
+        raise ApiError("AGENCY_NOT_FOUND", f"Agency {agency_id} does not exist.", 404)
+    active = {"$in": ["REPORTED", "ASSESSING", "RESPONDING", "ON_SCENE", "CONTROLLED"]}
+    query = {
+        "status": active,
+        "$or": [
+            {"requestedAgencies": agency["type"]},
+            {"requestedAgencies": {"$exists": False}},
+            {"requestedAgencies": {"$size": 0}},
+        ],
+    }
+    incidents = await db.incidents.find(query, {"_id": 0}).sort("createdAt", -1).to_list(500)
+    for inc in incidents:
+        inc["responses"] = await db.incident_responses.find(
+            {"incidentId": inc["id"]}, {"_id": 0}
+        ).to_list(50)
+    return incidents
 
 
 @api_router.get("/incidents/{incident_id}")
@@ -232,7 +311,53 @@ async def get_incident(incident_id: str):
     for assignment in assignments:
         unit = await db.units.find_one({"id": assignment["unitId"]}, {"_id": 0})
         assignment["unit"] = unit
-    return {**incident, "assignments": assignments}
+    responses = await db.incident_responses.find(
+        {"incidentId": incident_id}, {"_id": 0}
+    ).to_list(50)
+    return {**incident, "assignments": assignments, "responses": responses}
+
+
+@api_router.post("/incidents/{incident_id}/accept")
+async def accept_incident(
+    incident_id: str,
+    body: AcceptResponseRequest,
+    actor_role: str = Depends(require_role("ADMIN", "DISPATCHER", "AGENCY_OPERATOR")),
+):
+    incident = await get_incident_or_404(incident_id)
+    agency = await db.agencies.find_one({"id": body.agencyId}, {"_id": 0})
+    if not agency:
+        raise ApiError("AGENCY_NOT_FOUND", f"Agency {body.agencyId} does not exist.", 404)
+    existing = await db.incident_responses.find_one(
+        {"incidentId": incident_id, "agencyId": body.agencyId}, {"_id": 0}
+    )
+    if existing:
+        return existing
+    ts = now_iso()
+    response = {
+        "id": f"RES-{uuid.uuid4().hex[:8].upper()}",
+        "incidentId": incident_id,
+        "agencyId": body.agencyId,
+        "agencyName": agency["name"],
+        "agencyType": agency["type"],
+        "status": "ACCEPTED",
+        "acceptedAt": ts,
+        "createdAt": ts,
+    }
+    await db.incident_responses.insert_one(response)
+    response.pop("_id", None)
+    if incident["status"] == "REPORTED":
+        await db.incidents.update_one(
+            {"id": incident_id}, {"$set": {"status": "ASSESSING", "updatedAt": ts}}
+        )
+    await db.incident_events.insert_one(
+        new_event(
+            incident_id,
+            "RESPONSE_ACCEPTED",
+            f"{agency['name']} accepted the response",
+            {"agencyId": body.agencyId, "role": actor_role},
+        )
+    )
+    return response
 
 
 @api_router.patch("/incidents/{incident_id}/status")
@@ -270,9 +395,10 @@ async def list_incident_events(incident_id: str):
 # ---------- Recommendations ----------
 
 @api_router.get("/incidents/{incident_id}/recommendations")
-async def get_recommendations(incident_id: str):
+async def get_recommendations(incident_id: str, agencyId: str = None):
     incident = await get_incident_or_404(incident_id)
-    units = await db.units.find({}, {"_id": 0}).to_list(500)
+    unit_query = {"agencyId": agencyId} if agencyId else {}
+    units = await db.units.find(unit_query, {"_id": 0}).to_list(500)
     busy = await active_assignment_unit_ids()
     result = recommend(incident, units, busy)
     events = [
@@ -295,11 +421,18 @@ async def get_recommendations(incident_id: str):
 async def dispatch_units(
     incident_id: str,
     body: DispatchRequest,
-    role: str = Depends(require_role("ADMIN", "DISPATCHER")),
+    role: str = Depends(require_role("ADMIN", "DISPATCHER", "AGENCY_OPERATOR")),
+    x_agency_id: str = Header(default=None),
 ):
     incident = await get_incident_or_404(incident_id)
     unit_docs = await db.units.find({"id": {"$in": body.unitIds}}, {"_id": 0}).to_list(100)
     units_by_id = {u["id"]: u for u in unit_docs}
+    if role == "AGENCY_OPERATOR" and x_agency_id:
+        foreign = [u["id"] for u in unit_docs if u.get("agencyId") != x_agency_id]
+        if foreign:
+            raise ApiError(
+                "FORBIDDEN", "You can only dispatch units belonging to your agency.", 403
+            )
     assigned = await active_assignment_unit_ids()
 
     errors = validate_dispatch(incident, body.unitIds, units_by_id, assigned)
